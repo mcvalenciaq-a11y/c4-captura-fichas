@@ -73,6 +73,8 @@ input.txt.good{border-color:var(--green);}
 .hint{font-size:.72rem;color:var(--mute);margin-top:6px;}
 .hint.err{color:var(--red);font-weight:bold;}
 .hint.ok{color:var(--green2);font-weight:bold;}
+.btn-limpiar{background:transparent;color:var(--mute);border:1px solid var(--line);border-radius:8px;font-size:.6rem;padding:3px 8px;margin-left:8px;cursor:pointer;opacity:.5;white-space:nowrap;}
+.btn-limpiar:hover{opacity:1;color:var(--red);border-color:var(--red);}
 .count{float:right;font-variant-numeric:tabular-nums;}
 .preload{display:inline-block;font-size:.66rem;background:var(--cream);color:var(--golddk);border:1px solid var(--gold);border-radius:6px;padding:2px 7px;margin-left:7px;vertical-align:middle;}
 .hidden{display:none!important;}
@@ -99,7 +101,7 @@ footer{text-align:center;color:var(--mute);font-size:.72rem;padding:18px 14px 8p
       <h1>Captura de Fichas</h1>
       <div class="sub">C4 · Tababuela — Tarjetas y datos de corteros</div>
     </div>
-    <span class="tag">CAMPO</span>
+    <span class="tag">CAMPO</span> <button id="btnLimpiar" class="btn-limpiar" title="Borra lo guardado en ESTE equipo y recarga. No toca la nube ni a los demás.">⟳ Limpiar equipo</button>
   </header>
 
   <div class="prog">
@@ -460,7 +462,14 @@ function validarItem(item,x){
   else { ic.classList.add("bad"); ic.classList.remove("good"); hc.className="hint hint-cedula err"; hc.textContent="La cédula debe tener 9 o 10 dígitos (van "+nc+")"; }
 }
 
+/* =================== LIMPIAR ESTE EQUIPO (solo local) =================== */
+function limpiarEquipo(){
+  if(!confirm("¿Limpiar SOLO este equipo?\n\nSe borra lo guardado en ESTE celular y se recarga con lo que haya en la nube. NO borra la nube ni afecta a los demás.")) return;
+  try{ localStorage.clear(); }catch(e){}
+  location.reload();
+}
 /* =================== EXPORTAR EXCEL =================== */
+function descargarBlob(blob,nombre){ const u=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=u; a.download=nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u),1500); }
 function exportar(){
   const filas = [["Ficha","Nombre","Tiene Tarjeta","N° de Tarjeta","Fecha de cumpleaños","Cédula"]];
   FICHAS.forEach(x=>{
@@ -484,9 +493,19 @@ function exportar(){
   XLSX.utils.book_append_sheet(wb, ws, "Fichas");
   const fch = new Date();
   const nombre = "C4_Fichas_Tababuela_" + fch.getFullYear() + String(fch.getMonth()+1).padStart(2,"0") + String(fch.getDate()).padStart(2,"0") + ".xlsx";
-  XLSX.writeFile(wb, nombre);
   const done = FICHAS.filter(x=>esCompleta(x.ficha)).length;
-  toast("Excel generado · "+done+" completas de "+FICHAS.length);
+  const wbout = XLSX.write(wb, {bookType:"xlsx", type:"array"});
+  const blob = new Blob([wbout], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const file = new File([blob], nombre, {type:blob.type});
+  const msg = "C4 Tababuela · Captura de Fichas ("+done+" completas de "+FICHAS.length+")";
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    navigator.share({files:[file], title:nombre, text:msg})
+      .then(()=>toast("Listo para compartir"))
+      .catch(err=>{ if(!err || err.name!=="AbortError"){ descargarBlob(blob,nombre); toast("Excel descargado"); } });
+  } else {
+    descargarBlob(blob, nombre);
+    toast("Excel descargado · "+done+" completas de "+FICHAS.length);
+  }
 }
 
 /* =================== IMPORTAR AVANCE =================== */
@@ -528,6 +547,7 @@ document.querySelectorAll(".fbtn").forEach(b=>{
   });
 });
 $("#btnExport").addEventListener("click", exportar);
+$("#btnLimpiar") && $("#btnLimpiar").addEventListener("click", limpiarEquipo);
 $("#btnImport").addEventListener("click", ()=>$("#fileImport").click());
 $("#fileImport").addEventListener("change", e=>{ if(e.target.files[0]) importar(e.target.files[0]); e.target.value=""; });
 
